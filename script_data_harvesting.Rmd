@@ -1,0 +1,328 @@
+---
+title: "Public housing and leisure spaces in Madrid"
+author: "Candela Gómez & Clara Espinosa"
+date: "2024-03-12"
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+documentclass: krantz
+monofont: "Source Code Pro"
+monofontoptions: "Scale=0.7"
+biblio-style: apalike
+link-citations: yes
+colorlinks: yes
+graphics: yes
+description: |
+  This project aims to analyze the spatial distribution of public housing and leisure spaces in Madrid using data harvesting techniques.
+---
+
+## Introduction
+
+In this study, we aim to leverage techniques acquired in the data harvesting course, such as web scraping, the utilization of Selenium, and API operation, to investigate the spatial distribution of public housing in the city of Madrid. Specifically, we seek to examine their location concerning leisure spaces such as cinemas, theaters, art galleries, and parks.
+
+The first step is loading the following libraries. Before running the code, ensure they are installed in your computer:
+
+```{r}
+library(httr)
+library(httr2)
+library(RSelenium)
+library(rvest)
+library(scrapex)
+library(xml2)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(sf)
+library(ggplot2)
+```
+
+Configuring the user-agent of the web browser is advisable, as it helps identify your scraping bot as a legitimate user agent and can assist in performing ethical web scraping. You can find out your user agent by typing "what is my user agent" into your browser. Additionally, adding your name and email address can further identify yourself and establish transparency in your scraping activities.
+
+```{r}
+set_config(
+ user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0; Candela Gomez / 100516517@alumnos.uc3m.es"))
+```
+
+## Scrapping the EMVS webpage
+
+Our first objective is to map the public housing in the municipality of Madrid. To achieve this, we will conduct web scraping on the website of the Empresa Municipal de la Vivienda y Suelo, a local public entity responsible for managing public housing in the city of Madrid.
+
+We wanted to extract the number of dwellings and the district in which each housing development is located. The website distinguishes between completed or under-construction housing. In our work, we have decided to consider both. To extract this information, it was necessary to click on each housing development, thus requiring the use of Selenium.
+
+```{r}
+# Initiate a remote Selenium client
+driver <- rsDriver(browser = "firefox",
+                   port = 4420L) #you may need to change the port if it is already in use
+remDr <- driver$client
+url <- "https://www.emvs.es/Proyectos/Promociones"
+
+# CAREFUL: A WARNING MIGHT APPEAR IN MOZILLA FIREFOX
+
+# Navigate to the website
+remDr$navigate(url)
+
+# Deny cookies
+url |> 
+  read_html() |> 
+  xml_find_all("(//div[@id = 'Cookies']//button[@onclick = 'rechazaCookies()'])")
+
+# Click deny cookies:
+remDr$findElement(value="(//div[@id = 'Cookies']//button[@onclick = 'rechazaCookies()'])")$clickElement()
+
+# Extract the link for the first housing development
+url |> 
+  read_html() |> 
+  xml_find_all("(//div[@class = 'even4 nopadding']//a)[1]")
+
+# Relocate it in RSelenium and click on it:
+remDr$findElement(value="(//div[@class = 'even4 nopadding']//a)[1]")$clickElement()
+
+# Retrieve the HTML source code of the webpage and parses it into a structured format for further processing
+page_source <- remDr$getPageSource()[[1]]
+
+html_code <-
+  page_source %>%
+  read_html()
+```
+
+Now, we extract the district and the number of dwellings for the first housing:
+
+```{r}
+# Extract the district for the selected housing:
+first_district <-
+  html_code %>%
+  xml_find_all("//header[@class='ancho70 ftr']//div[@class='subtitle']//p") %>%
+  xml_text() |> 
+  str_extract("^.+?\\.") |> 
+  str_replace("\\.", "")
+
+first_district
+
+# Extract number of dwellings for the selected housing:
+first_number <-
+  html_code %>%
+  xml_find_all("//header[@class='ancho70 ftr']//span") %>%
+  xml_text() |> 
+  str_extract("\\d+") 
+
+first_number
+
+# Create a tibble 
+first_final_res <- tibble(number = first_number, district = first_district)
+
+first_final_res
+
+# Go back
+remDr$goBack()
+```
+
+Once we have identified the path for extracting the required information, we define a function to automate the extraction of the district and number of dwellings for every housing development. We finally organize it in a data frame.
+
+```{r}
+
+collect_categories <- function(page_source) {
+  # Read source code of the website
+  html_code <-
+    page_source %>%
+    read_html()
+  
+  # Extract neighborhood
+  district <-
+    html_code %>%
+    xml_find_all("//header[@class='ancho70 ftr']//div[@class='subtitle']//p") %>%
+    xml_text() |> 
+    str_extract("^.+?\\.") |> 
+    str_replace("\\.", "")
+  
+  # Extract number
+  number <-
+    html_code %>%
+    xml_find_all("//header[@class='ancho70 ftr']//span") %>%
+    xml_text() |> 
+    str_extract("\\d+") 
+  
+  # Collect everything in a data frame
+  final_res <- tibble(number = number, district = district)
+  final_res
+}
+
+# Get number of places on this page
+num <-
+  url %>%
+  read_html() %>%
+  xml_find_all("(//div[@class = 'even4 nopadding']//a)") %>%
+  length()
+
+posts <- list()
+
+# Loop over each place, extract the categories and go back to the main page
+for (i in seq_len(num)) {
+  print(i)
+  # Go to the next place
+  xpath <- paste0("(//div[@class = 'even4 nopadding']//a)[", i, "]")
+  Sys.sleep(2)
+  remDr$findElement(value = xpath)$clickElement()
+  
+  # Get the source code
+  page_source <- remDr$getPageSource()[[1]]
+  
+  # Grab all categories
+  posts[[i]] <- collect_categories(page_source)
+  
+  # Go back to the main page before next iteration
+  remDr$goBack()
+}
+
+# Combine results
+combined_df <- bind_rows(posts)
+
+combined_df
+
+combined_df$number <- as.numeric(combined_df$number)
+
+# Group the dataframe by districts
+summarized_df <- combined_df %>%
+  group_by(district) %>%
+  summarise(total_number = sum(number, na.rm = TRUE))
+
+summarized_df
+```
+
+## Using Ayuntamiento de Madrid's Datos Abiertos API.
+
+Now, we want to obtain data about the distribution of leisure spaces, for this, the Ayuntamiento de Madrid's Datos Abiertos API is useful. This API gives the developer access to data about the city. In our case we will obtain the data from four different endpoints, each one dedicated to spots of leisure: theaters, concert halls, cinemas and parks. We won't need an API key to use this API, we can ask for the information directly.
+
+Let's start with theaters. We will request the information, treat the data in JSON format and store the latitude and longitude data. Lastly, we will assign to all observations the category to which the data belongs, in order to perform the data visualization subsequently.
+
+```{r}
+theaters <- "https://datos.madrid.es/egob/catalogo/208862-7650046-ocio_salas.json"
+reqtheaters <- request(theaters) 
+reqtheaters
+
+resp_theaters <- reqtheaters %>%
+  req_perform()
+resp_theaters
+
+json_theaters <- resp_theaters %>%
+  resp_body_json(simplifyVector=TRUE)
+
+tibble_theaters <- as_tibble(json_theaters$`@graph`)
+glimpse(tibble_theaters)
+
+location_data_theaters <- tibble_theaters$location
+location_data_theaters <- location_data_theaters %>% mutate(category = "Theatre")
+```
+
+We continue with Cinemas and film archives
+
+```{r}
+cinemas <- "https://datos.madrid.es/egob/catalogo/208862-7650164-ocio_salas.json"
+reqcinemas <- request(cinemas) 
+reqcinemas
+
+resp_cinemas <- reqcinemas %>%
+  req_perform() 
+resp_cinemas
+
+
+json_cinemas <- resp_cinemas %>%
+  resp_body_json(simplifyVector=TRUE)
+
+tibble_cinemas <- as_tibble(json_cinemas$`@graph`)
+glimpse(tibble_cinemas)
+
+location_data_cinemas <- tibble_cinemas$location
+location_data_cinemas <- location_data_cinemas %>% mutate(category = "Cinema")
+```
+
+Now, Concert Halls:
+
+```{r}
+concerthalls <- "https://datos.madrid.es/egob/catalogo/208862-7650180-ocio_salas.json"
+reqconcerthalls<- request(concerthalls) 
+reqconcerthalls
+
+resp_concerthalls <- reqconcerthalls %>%
+  req_perform() 
+resp_concerthalls
+
+json_concerthalls <- resp_concerthalls %>%
+  resp_body_json(simplifyVector=TRUE)
+
+tibble_concerthalls <- as_tibble(json_concerthalls$`@graph`)
+glimpse(tibble_concerthalls)
+
+location_data_concerthalls <- tibble_concerthalls$location
+location_data_concerthalls <- location_data_concerthalls %>% mutate(category = "Concert Hall")
+```
+
+And lastly, parks
+
+```{r}
+parks <- "https://datos.madrid.es/egob/catalogo/200761-0-parques-jardines.json"
+reqparks <- request(parks) # Builds a placeholder for our request
+reqparks
+
+resp_parks <- reqparks %>%
+  req_perform() 
+resp_parks
+
+json_parks <- resp_parks %>%
+  resp_body_json(simplifyVector=TRUE)
+
+tibble_parks <- as_tibble(json_parks$`@graph`)
+glimpse(tibble_parks)
+
+location_data_parks <- tibble_parks$location
+location_data_parks <- location_data_parks %>% mutate(category = "Park")
+```
+
+We join the data for all leisure spots
+
+```{r}
+all_locations <-  bind_rows(location_data_theaters, location_data_cinemas, location_data_concerthalls, location_data_parks)
+```
+
+## Visualization
+
+We will perform now a data visualization to observe the distribution of all this leisure spots, and see if it holds any relation to the public housing situation in the City of Madrid.
+
+First, we obtain the data of the different districts of Madrid to create the map. This data is also obtained in the Ayuntamiento de Madrid's website. We will need the District database in .dbf, .prj, .shp and .shx format for it to work correctly.
+
+```{r}
+madrid_districts <- st_read("./Distritos.shp")
+
+madrid_districts <- madrid_districts %>%
+  left_join(summarized_df, by = c("NOMBRE" = "district"))
+```
+
+Some conversion of the data must be done to create the map, since the coordinates for the districts and the coordinates for the base map are different:
+
+```{r}
+all_locations_sf <- st_as_sf(all_locations, coords = c("longitude", "latitude"), crs = 4326)
+all_locations_sf <- st_transform(all_locations_sf, st_crs(madrid_districts))
+```
+
+Now we can visualize the map:
+
+```{r, fig.width= 12, fig.height= 11, out.width='100%'}
+ggplot() +
+  geom_sf(data = madrid_districts, aes(fill = total_number)) +
+  geom_sf(data = all_locations_sf, aes(color = category), size = 1, show.legend = 'point', alpha = 0.7) + 
+  theme_minimal() +
+  ggtitle("Public housing and leisure spaces in Madrid") +
+  labs(subtitle = "Divided by categories") +
+  scale_fill_gradient(name = "Number of Public Housing dwellings", low="#51A6E9", high="#16324C")+
+  labs(color = "Category of leisure") +
+  scale_color_manual(values = c("Cinema" = "purple", "Concert Hall" = "gold", "Theatre" = "red", "Park" = "green"))+
+  facet_wrap(~ category)
+```
+
+## Conclusion
+
+The concentration of public housing in 7 of Madrid's 21 districts, while leisure spaces such as cinemas, theaters and art galleries are mainly located in the central district, may reflect socioeconomic dynamics and urban policies in the city that would require further study.
+
+The concentration of public housing in certain southern districts may lead to socioeconomic segregation and lack of equitable access to services and opportunities in other areas of the city.
+
+This situation highlights the importance of comprehensive urban policies that seek to promote spatial equity, ensuring that all citizens have access to adequate housing and a variety of services and opportunities, regardless of their geographic location in the city.
