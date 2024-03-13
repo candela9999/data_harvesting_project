@@ -1590,7 +1590,7 @@ code span.wa { color: #5e5e5e; font-style: italic; } /* Warning */
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># Initiate a remote Selenium client</span></span>
 <span><span class='va'>driver</span> <span class='op'>&lt;-</span> <span class='fu'><a href='https://docs.ropensci.org/RSelenium/reference/rsDriver.html'>rsDriver</a></span><span class='op'>(</span>browser <span class='op'>=</span> <span class='st'>"firefox"</span>,</span>
-<span>                   port <span class='op'>=</span> <span class='fl'>4420L</span><span class='op'>)</span> <span class='co'>#you may need to change the port if it is already in use</span></span></code></pre>
+<span>                   port <span class='op'>=</span> <span class='fl'>4421L</span><span class='op'>)</span> <span class='co'>#you may need to change the port if it is already in use</span></span></code></pre>
 </div>
 <pre><code>[1] &quot;Connecting to remote server&quot;
 $acceptInsecureCerts
@@ -1618,10 +1618,10 @@ $`moz:platformVersion`
 [1] &quot;10.0&quot;
 
 $`moz:processID`
-[1] 17828
+[1] 6204
 
 $`moz:profile`
-[1] &quot;C:\\Users\\gbcan\\AppData\\Local\\Temp\\rust_mozprofileHR5r4k&quot;
+[1] &quot;C:\\Users\\gbcan\\AppData\\Local\\Temp\\rust_mozprofilenmkAzp&quot;
 
 $`moz:shutdownTimeout`
 [1] 60000
@@ -1662,10 +1662,10 @@ $unhandledPromptBehavior
 [1] &quot;dismiss and notify&quot;
 
 $webdriver.remote.sessionid
-[1] &quot;8270bb3a-bb90-4969-bbc3-8a2844e94e41&quot;
+[1] &quot;cf371474-3262-4e67-be01-94a182fef876&quot;
 
 $id
-[1] &quot;8270bb3a-bb90-4969-bbc3-8a2844e94e41&quot;</code></pre>
+[1] &quot;cf371474-3262-4e67-be01-94a182fef876&quot;</code></pre>
 <div class="sourceCode">
 <pre class="sourceCode r"><code class="sourceCode r"><span><span class='va'>remDr</span> <span class='op'>&lt;-</span> <span class='va'>driver</span><span class='op'>$</span><span class='va'>client</span></span>
 <span><span class='va'>url</span> <span class='op'>&lt;-</span> <span class='st'>"https://www.emvs.es/Proyectos/Promociones"</span></span>
@@ -1883,6 +1883,12 @@ $id
 5 Vicálvaro                  1212
 6 Villa de Vallecas           453
 7 Villaverde                  120</code></pre>
+<div class="sourceCode">
+<pre class="sourceCode r"><code class="sourceCode r"><span><span class='co'># Close browser and server</span></span>
+<span><span class='va'>remDr</span><span class='op'>$</span><span class='fu'>close</span><span class='op'>(</span><span class='op'>)</span></span>
+<span><span class='va'>driver</span><span class='op'>$</span><span class='va'>server</span><span class='op'>$</span><span class='kw'>stop</span><span class='op'>(</span><span class='op'>)</span></span></code></pre>
+</div>
+<pre><code>[1] TRUE</code></pre>
 </div>
 <h2 id="using-ayuntamiento-de-madrids-datos-abiertos-api.">Using Ayuntamiento de Madrid’s Datos Abiertos API.</h2>
 <p>Now, we want to obtain data about the distribution of leisure spaces, for this, the Ayuntamiento de Madrid’s Datos Abiertos API is useful. This API gives the developer access to data about the city. In our case we will obtain the data from four different endpoints, each one dedicated to spots of leisure: theaters, concert halls, cinemas and parks. We won’t need an API key to use this API, we can ask for the information directly.</p>
@@ -2068,7 +2074,7 @@ Projected CRS: ETRS89 / UTM zone 30N</code></pre>
 <p>The concentration of public housing in 7 of Madrid’s 21 districts, while leisure spaces such as cinemas, theaters and art galleries are mainly located in the central district, may reflect socioeconomic dynamics and urban policies in the city that would require further study.</p>
 <p>The concentration of public housing in certain southern districts may lead to socioeconomic segregation and lack of equitable access to services and opportunities in other areas of the city.</p>
 <p>This situation highlights the importance of comprehensive urban policies that seek to promote spatial equity, ensuring that all citizens have access to adequate housing and a variety of services and opportunities, regardless of their geographic location in the city.</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r distill-force-highlighting-css"><code class="sourceCode r"></code></pre></div>
 <!--radix_placeholder_article_footer-->
 <!--/radix_placeholder_article_footer-->
 </div>

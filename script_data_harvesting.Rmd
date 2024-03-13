@@ -53,7 +53,7 @@ We wanted to extract the number of dwellings and the district in which each hous
 ```{r}
 # Initiate a remote Selenium client
 driver <- rsDriver(browser = "firefox",
-                   port = 4420L) #you may need to change the port if it is already in use
+                   port = 4421L) #you may need to change the port if it is already in use
 remDr <- driver$client
 url <- "https://www.emvs.es/Proyectos/Promociones"
 
@@ -187,6 +187,10 @@ summarized_df <- combined_df %>%
   summarise(total_number = sum(number, na.rm = TRUE))
 
 summarized_df
+
+# Close browser and server
+remDr$close()
+driver$server$stop()
 ```
 
 ## Using Ayuntamiento de Madrid's Datos Abiertos API.
